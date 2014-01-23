@@ -37,22 +37,20 @@ MISSING_PORT = 103
 INVALID_INFO_HASH = 150
 INVALID_PEER_ID = 151
 INVALID_NUMWANT = 152
-GENERIC_ERROR = 900 
+GENERIC_ERROR = 900
 
 # Pytt response messages
 PYTT_RESPONSE_MESSAGES = {
-                          INVALID_REQUEST_TYPE: 'Invalid Request type',
-                          MISSING_INFO_HASH: 'Missing info_hash field',
-                          MISSING_PEER_ID: 'Missing peer_id field',
-                          MISSING_PORT: 'Missing port field',
-                          INVALID_INFO_HASH: 'info_hash is not %d bytes'
-                                                          %INFO_HASH_LEN,
-                          INVALID_PEER_ID: 'peer_id is not %d bytes'
-                                                          %PEER_ID_LEN,
-                          INVALID_NUMWANT: 'Peers more than %d is not allowed.'
-                                                          %MAX_ALLOWED_PEERS,
-                          GENERIC_ERROR: 'Error in request',
-                         }
+    INVALID_REQUEST_TYPE: 'Invalid Request type',
+    MISSING_INFO_HASH: 'Missing info_hash field',
+    MISSING_PEER_ID: 'Missing peer_id field',
+    MISSING_PORT: 'Missing port field',
+    INVALID_INFO_HASH: 'info_hash is not %d bytes' % INFO_HASH_LEN,
+    INVALID_PEER_ID: 'peer_id is not %d bytes' % PEER_ID_LEN,
+    INVALID_NUMWANT: 'Peers more than %d is not allowed.' % MAX_ALLOWED_PEERS,
+    GENERIC_ERROR: 'Error in request',
+}
+
 # add our response codes to httplib.responses
 httplib.responses.update(PYTT_RESPONSE_MESSAGES)
 
@@ -65,8 +63,8 @@ def setup_logging(debug=False):
     else:
         level = logging.INFO
     log_handler = logging.handlers.RotatingFileHandler(LOG_PATH,
-                                                      maxBytes=1024*1024,
-                                                      backupCount=2)
+                                                       maxBytes=1024 * 1024,
+                                                       backupCount=2)
     root_logger = logging.getLogger('')
     root_logger.setLevel(level)
     format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -78,7 +76,7 @@ def setup_logging(debug=False):
 def create_config(path):
     """Create default config file.
     """
-    logging.info('creating default config at %s' %CONFIG_PATH)
+    logging.info('creating default config at %s' % CONFIG_PATH)
     config = ConfigParser.RawConfigParser()
     config.add_section('tracker')
     config.set('tracker', 'port', '8080')
@@ -134,7 +132,7 @@ class Config:
         if not hasattr(self, '__config'):
             self.__config = ConfigParser.RawConfigParser()
             if self.__config.read(CONFIG_PATH) == []:
-                raise ConfigError('No config at %s' %CONFIG_PATH)
+                raise ConfigError('No config at %s' % CONFIG_PATH)
         return self.__config
 
     def close(self):
@@ -194,7 +192,7 @@ def no_of_seeders(info_hash):
     """
     db = get_db()
     count = 0
-    if db.has_key(info_hash):
+    if info_hash in db:
         for peer_info in db[info_hash]:
             if peer_info[3] == 'completed':
                 count += 1
@@ -206,7 +204,7 @@ def no_of_leechers(info_hash):
     """
     db = get_db()
     count = 0
-    if db.has_key(info_hash):
+    if info_hash in db:
         for peer_info in db[info_hash]:
             if peer_info[3] == 'started':
                 count += 1
@@ -217,7 +215,7 @@ def store_peer_info(info_hash, peer_id, ip, port, status):
     """Store the information about the peer.
     """
     db = get_db()
-    if db.has_key(info_hash):
+    if info_hash in db:
         if (peer_id, ip, port, status) not in db[info_hash]:
             db[info_hash].append((peer_id, ip, port, status))
     else:
@@ -233,21 +231,21 @@ def get_peer_list(info_hash, numwant, compact, no_peer_id):
         byteswant = numwant * 6
         compact_peers = ""
         # make a compact peer list
-        if db.has_key(info_hash):
+        if info_hash in db:
             for peer_info in db[info_hash]:
                 ip = inet_aton(peer_info[1])
                 port = pack('>H', int(peer_info[2]))
-                compact_peers += (ip+port)
-        logging.debug('compact peer list: %r' %compact_peers[:byteswant])
+                compact_peers += (ip + port)
+        logging.debug('compact peer list: %r' % compact_peers[:byteswant])
         return compact_peers[:byteswant]
     else:
         peers = []
-        if db.has_key(info_hash):
+        if info_hash in db:
             for peer_info in db[info_hash]:
                 p = {}
                 p['peer_id'], p['ip'], p['port'], _ = peer_info
-                if no_peer_id: del p['peer_id']
+                if no_peer_id:
+                    del p['peer_id']
                 peers.append(p)
-        logging.debug('peer list: %r' %peers[:numwant])
+        logging.debug('peer list: %r' % peers[:numwant])
         return peers[:numwant]
-    

@@ -71,17 +71,17 @@ class AnnounceHandler(BaseHandler):
 
         # generate response
         response = {}
-        # Interval in seconds that the client should wait between sending 
+        # Interval in seconds that the client should wait between sending
         #    regular requests to the tracker.
         response['interval'] = get_config().getint('tracker', 'interval')
-        # Minimum announce interval. If present clients must not re-announce 
+        # Minimum announce interval. If present clients must not re-announce
         #    more frequently than this.
         response['min interval'] = get_config().getint('tracker', 'min_interval')
         # FIXME
         response['tracker id'] = tracker_id
         response['complete'] = no_of_seeders(info_hash)
         response['incomplete'] = no_of_leechers(info_hash)
-        
+
         # get the peer list for this announce
         response['peers'] = get_peer_list(info_hash, numwant, compact, no_peer_id)
 
@@ -124,7 +124,7 @@ def run_app(port):
         (r"/scrape.*", ScrapeHandler),
         (r"/", TrackerStats),
     ])
-    logging.info('Starting Pytt on port %d' %port)
+    logging.info('Starting Pytt on port %d' % port)
     http_server = tornado.httpserver.HTTPServer(tracker)
     http_server.listen(port)
     tornado.ioloop.IOLoop.instance().start()
@@ -136,10 +136,10 @@ def start_tracker():
     # parse commandline options
     parser = OptionParser()
     parser.add_option('-p', '--port', help='Tracker Port', default=0)
-    parser.add_option('-b', '--background', action='store_true', 
-                    default=False, help='Start in background')
-    parser.add_option('-d', '--debug', action='store_true', 
-                    default=False, help='Debug mode')
+    parser.add_option('-b', '--background', action='store_true', default=False,
+                      help='Start in background')
+    parser.add_option('-d', '--debug', action='store_true', default=False,
+                      help='Debug mode')
     (options, args) = parser.parse_args()
 
     # setup directories
@@ -155,7 +155,7 @@ def start_tracker():
         close_db()
         sys.exit(0)
     except Exception, ex:
-        logging.fatal('%s' %str(ex))
+        logging.fatal('%s' % str(ex))
         close_db()
         sys.exit(-1)
 
