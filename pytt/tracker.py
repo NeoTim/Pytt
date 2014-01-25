@@ -13,8 +13,9 @@ import tornado.ioloop
 import tornado.web
 import tornado.httpserver
 from optparse import OptionParser
-from bencode import bencode, bdecode
-from utils import *
+from bencode import bencode
+import utils
+from utils import BaseHandler, no_of_leechers, no_of_seeders
 
 
 class TrackerStats(BaseHandler):
@@ -24,66 +25,93 @@ class TrackerStats(BaseHandler):
         self.send_error(404)
 
 
+global_info_hash = None
+
+
 class AnnounceHandler(BaseHandler):
     """Track the torrents. Respond with the peer-list.
     """
+
+    def decode_argument(self, value, name=None):
+        try:
+            return value.decode("utf-8")
+        except UnicodeDecodeError:
+            return value
+
     def get(self):
+        global global_info_hash
         failure_reason = ''
         warning_message = ''
 
         # get all the required parameters from the HTTP request.
         info_hash = self.get_argument('info_hash')
+        if info_hash:
+            global_info_hash = info_hash
         peer_id = self.get_argument('peer_id')
-        ip = self.request.remote_ip
+        try:
+            ip = self.get_argument('remote_ip')
+        except:
+            ip = self.request.remote_ip
+        if not ip:
+            ip = self.request.remote_ip
+
         port = self.get_argument('port')
 
         # send appropirate error code.
         if not info_hash:
-            return self.send_error(MISSING_INFO_HASH)
+            return self.send_error(utils.MISSING_INFO_HASH)
+
         if not peer_id:
-            return self.send_error(MISSING_PEER_ID)
+            return self.send_error(utils.MISSING_PEER_ID)
+
         if not port:
-            return self.send_error(MISSING_PORT)
-        if len(info_hash) != INFO_HASH_LEN:
-            return self.send_error(INVALID_INFO_HASH)
-        if len(peer_id) != PEER_ID_LEN:
-            return self.send_error(INVALID_PEER_ID)
+            return self.send_error(utils.MISSING_PORT)
+
+        # if len(info_hash) != utils.INFO_HASH_LEN:
+        #    return self.send_error(utils.INVALID_INFO_HASH)
+        # if len(peer_id) != utils.PEER_ID_LEN:
+        #    return self.send_error(utils.INVALID_PEER_ID)
 
         # get the optional parameters.
-        uploaded = int(self.get_argument('uploaded', 0))
-        downloaded = int(self.get_argument('downloaded', 0))
-        left = int(self.get_argument('left', 0))
+        # uploaded = int(self.get_argument('uploaded', 0))
+        # downloaded = int(self.get_argument('downloaded', 0))
+        # left = int(self.get_argument('left', 0))
         compact = int(self.get_argument('compact', 0))
-        no_peer_id = int(self.get_argument('no_peer_id', 0))
+        # no_peer_id = int(self.get_argument('no_peer_id', 0))
         event = self.get_argument('event', '')
-        numwant = int(self.get_argument('numwant', DEFAULT_ALLOWED_PEERS))
-        if numwant > MAX_ALLOWED_PEERS:
+        numwant = int(self.get_argument('numwant',
+                                        utils.DEFAULT_ALLOWED_PEERS))
+
+        if numwant > utils.MAX_ALLOWED_PEERS:
             # cannot request more than MAX_ALLOWED_PEERS.
-            self.send_error(INVALID_NUMWANT)
+            self.send_error(utils.INVALID_NUMWANT)
 
         # FIXME: What to do with these parameters?
-        key = self.get_argument('key', '')
+        # key = self.get_argument('key', '')
         tracker_id = self.get_argument('trackerid', '')
 
         # store the peer info
         if event:
-            store_peer_info(info_hash, peer_id, ip, port, event)
+            print "[+] storing peer %s" % ip
+            utils.store_peer_info(info_hash, peer_id, ip, port, event)
 
         # generate response
         response = {}
-        # Interval in seconds that the client should wait between sending 
+        # Interval in seconds that the client should wait between sending
         #    regular requests to the tracker.
-        response['interval'] = get_config().getint('tracker', 'interval')
-        # Minimum announce interval. If present clients must not re-announce 
+        response['interval'] = utils.get_config().getint('tracker', 'interval')
+        # Minimum announce interval. If present clients must not re-announce
         #    more frequently than this.
-        response['min interval'] = get_config().getint('tracker', 'min_interval')
+        response['min interval'] = utils.get_config().getint('tracker',
+                                                             'min_interval')
         # FIXME
         response['tracker id'] = tracker_id
-        response['complete'] = no_of_seeders(info_hash)
-        response['incomplete'] = no_of_leechers(info_hash)
-        
+        response['complete'] = utils.no_of_seeders(info_hash)
+        response['incomplete'] = utils.no_of_leechers(info_hash)
+
         # get the peer list for this announce
-        response['peers'] = get_peer_list(info_hash, numwant, compact, no_peer_id)
+        response['peers'] = utils.get_peer_list(info_hash, numwant, compact,
+                                                True)
 
         # set error and warning messages for the client if any.
         if failure_reason:
@@ -93,12 +121,48 @@ class AnnounceHandler(BaseHandler):
 
         # send the bencoded response as text/plain document.
         self.set_header('content-type', 'text/plain')
+        print "<<<", response
         self.write(bencode(response))
+
+
+class FakeAnnounceHandler(BaseHandler):
+    """Track the torrents. Respond with the peer-list.
+    """
+
+    def decode_argument(self, value, name=None):
+        try:
+            return value.decode("utf-8")
+        except UnicodeDecodeError:
+            return value
+
+    def get(self):
+        info_hash = global_info_hash
+        peer_id = "XXX"
+        ip = self.get_argument('remote_ip')
+        port = self.get_argument('remote_port')
+
+        if not ip or not port:
+            self.write("FFF")
+            return
+
+        # store the peer info
+        print "[+] storing FAKE peer %s:%s" % (ip, port)
+        utils.store_peer_info(info_hash, peer_id, ip, port, 1)
+
+        self.set_header('content-type', 'text/plain')
+        self.write("OK")
 
 
 class ScrapeHandler(BaseHandler):
     """Returns the state of all torrents this tracker is managing.
     """
+
+    def decode_argument(self, value, name=None):
+        try:
+            return value.decode("utf-8")
+        except UnicodeDecodeError:
+            return value
+
     def get(self):
         info_hashes = self.get_arguments('info_hash')
         response = {}
@@ -109,7 +173,8 @@ class ScrapeHandler(BaseHandler):
             # FIXME: number of times clients have registered completion.
             response[info_hash]['downloaded'] = no_of_seeders(info_hash)
             response[info_hash]['incomplete'] = no_of_leechers(info_hash)
-            response[info_hash]['name'] = bdecode(info_hash).get(name, '')
+            response[info_hash]['name'] = "XXX"
+            # response[info_hash]['name'] = bdecode(info_hash).get(name, '')
 
         # send the bencoded response as text/plain document.
         self.set_header('content-type', 'text/plain')
@@ -121,10 +186,11 @@ def run_app(port):
     """
     tracker = tornado.web.Application([
         (r"/announce.*", AnnounceHandler),
+        (r"/fake.*", FakeAnnounceHandler),
         (r"/scrape.*", ScrapeHandler),
         (r"/", TrackerStats),
     ])
-    logging.info('Starting Pytt on port %d' %port)
+    logging.info('Starting Pytt on port %d' % port)
     http_server = tornado.httpserver.HTTPServer(tracker)
     http_server.listen(port)
     tornado.ioloop.IOLoop.instance().start()
@@ -136,27 +202,28 @@ def start_tracker():
     # parse commandline options
     parser = OptionParser()
     parser.add_option('-p', '--port', help='Tracker Port', default=0)
-    parser.add_option('-b', '--background', action='store_true', 
-                    default=False, help='Start in background')
-    parser.add_option('-d', '--debug', action='store_true', 
-                    default=False, help='Debug mode')
+    parser.add_option('-b', '--background', action='store_true', default=False,
+                      help='Start in background')
+    parser.add_option('-d', '--debug', action='store_true', default=False,
+                      help='Debug mode')
     (options, args) = parser.parse_args()
 
     # setup directories
-    create_pytt_dirs()
+    utils.create_pytt_dirs()
     # setup logging
-    setup_logging(options.debug)
+    utils.setup_logging(options.debug)
 
     try:
         # start the torrent tracker
-        run_app(int(options.port) or get_config().getint('tracker', 'port'))
+        run_app(int(options.port) or utils.get_config().getint('tracker',
+                                                               'port'))
     except KeyboardInterrupt:
         logging.info('Tracker Stopped.')
-        close_db()
+        utils.close_db()
         sys.exit(0)
     except Exception, ex:
-        logging.fatal('%s' %str(ex))
-        close_db()
+        logging.fatal('%s' % str(ex))
+        utils.close_db()
         sys.exit(-1)
 
 
